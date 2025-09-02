@@ -504,19 +504,38 @@ int publish_settings(String command) {
     return 1;
 }
 
+class App {
+  private:
+    bool firstTime = true;
+  public:
+    App() {}
+    void setup() {
+      oledWrapper.startup();
+      oledWrapper.clear();
+      Particle.function("GetData", sample_and_publish);
+      Particle.function("GetSetting", publish_settings);
+      Particle.function("reset", remoteResetFunction);
+      delay(1000);
+      Utils::publish("Startup status", "finished");
+    }
+    void loop() {
+      if (firstTime) {
+        firstTime = false;
+        Utils::publish("loop", "firstTime");
+        delay(2000);
+      }
+      timeSupport.handleTime();
+      sensorhandler.monitor_sensor();
+      delay( 2 * 1000 );
+      Utils::checkForRemoteReset();
+    }  
+};
+App app;
+
 void setup() {
-  oledWrapper.startup();
-  oledWrapper.clear();
-  Particle.function("GetData", sample_and_publish);
-  Particle.function("GetSetting", publish_settings);
-  Particle.function("reset", remoteResetFunction);
-  Utils::publish("Startup status", "finished");
-  delay(1000);
+  app.setup();
 }
 
 void loop() {
-  timeSupport.handleTime();
-  sensorhandler.monitor_sensor();
-  delay( 2 * 1000 );
-  Utils::checkForRemoteReset();
+  app.loop();
 }
