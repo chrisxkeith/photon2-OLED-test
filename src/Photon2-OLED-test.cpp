@@ -14,6 +14,123 @@ SYSTEM_THREAD(ENABLED);
 // View logs with CLI using 'particle serial monitor --follow'
 SerialLogHandler logHandler(LOG_LEVEL_INFO);
 
+class JSonizer {
+  public:
+    static void addFirstSetting(String& json, String key, String val);
+    static void addSetting(String& json, String key, String val);
+    static String toString(bool b);
+};
+
+#define DELAY_BEFORE_RESET 2000
+const unsigned int resetDelayMillis = DELAY_BEFORE_RESET;
+unsigned long resetSync = millis();
+bool resetFlag = false;
+
+const static String PHOTON_01 = "1c002c001147343438323536";
+const static String PHOTON_02 = "300040001347343438323536";
+const static String PHOTON_07 = "32002e000e47363433353735";
+const static String PHOTON_08 = "500041000b51353432383931";
+const static String PHOTON_09 = "1f0027001347363336383437";
+const static String PHOTON_15 = "270037000a47373336323230";
+const static String PHOTON2_16= "0a10aced202194944a045288";
+const static String PHOTON2_17= "0a10aced202194944a045200";
+class Utils {
+  public:
+    static unsigned long startPublishDataMillis;
+    static bool          alwaysPublishData;
+    const static unsigned long ALWAYS_PUBLISH_DATA_MILLIS = 1000 * 60 * 60 * 2; // 2 hours
+
+    static void setAlwaysPublishData() {
+      alwaysPublishData = true;
+      startPublishDataMillis = millis();
+    }
+    static bool publishDataDone() {
+      if (millis() - startPublishDataMillis > ALWAYS_PUBLISH_DATA_MILLIS) {
+        alwaysPublishData = false;
+        startPublishDataMillis = 0;
+        return true;
+      }
+      return false;
+    }
+    static int setInt(String command, int& i, int lower, int upper) {
+      int tempMin = command.toInt();
+      if (tempMin >= lower && tempMin <= upper) {
+          i = tempMin;
+          return 1;
+      }
+      return -1;
+    }
+    static void publish(String event, String data) {
+      Particle.publish(event, data);
+      delay(1000);
+    }
+    static String elapsedTime(unsigned long ms) {
+      unsigned long seconds = (ms / 1000) % 60;
+      unsigned long minutes = (ms / 1000 / 60) % 60;
+      unsigned long hours = (ms / 1000 / 60 / 60);
+      String elapsed;
+      if (hours > 24) {
+        elapsed.concat("hours > 24");
+      } else {
+        char s[32];
+        sprintf(s, "%02u:%02u:%02u", hours, minutes, seconds);
+        elapsed.concat(s);
+      }
+      return elapsed;
+    }
+    static String elapsedUpTime() {
+      return elapsedTime(millis());
+    }
+    static void publishJson() {
+      String json("{");
+      JSonizer::addFirstSetting(json, "githubRepo", "https://github.com/chrisxkeith/photon2-OLED-test");
+      JSonizer::addSetting(json, "build", "~ Tue, Sep  2, 2025  4:25:13 PM");
+      JSonizer::addSetting(json, "timeSinceRestart", elapsedUpTime());
+      JSonizer::addSetting(json, "getDeviceName", getDeviceName());
+      JSonizer::addSetting(json, "getDeviceLocation", getDeviceLocation());
+      JSonizer::addSetting(json, "getDeviceBaseline", String(getDeviceBaseline()));
+      JSonizer::addSetting(json, "startPublishDataMillis", String(startPublishDataMillis));
+      JSonizer::addSetting(json, "alwaysPublishData", JSonizer::toString(alwaysPublishData));
+      JSonizer::addSetting(json, "ALWAYS_PUBLISH_DATA_MILLIS", String(ALWAYS_PUBLISH_DATA_MILLIS));
+      json.concat("}");
+      Utils::publish("Utils json", json);
+    }
+    static String getDeviceName() {
+      String deviceID = System.deviceID();
+      if (deviceID.equals(PHOTON_01)) { return "PHOTON_01"; }
+      if (deviceID.equals(PHOTON_07)) { return "PHOTON_07"; }
+      if (deviceID.equals(PHOTON_08)) { return "PHOTON_08"; }
+      if (deviceID.equals(PHOTON_15)) { return "PHOTON_15"; }
+      if (deviceID.equals(PHOTON2_16)){ return "PHOTON2_16"; }
+      if (deviceID.equals(PHOTON2_17)){ return "PHOTON2_17"; }
+      return "Unknown deviceID: " + deviceID;
+    }
+    static String getDeviceLocation() {
+      String deviceID = System.deviceID();
+      if (deviceID.equals(PHOTON_01)) { return "Dryer";  }
+      if (deviceID.equals(PHOTON_07)) { return "Dryer 2"; }
+      if (deviceID.equals(PHOTON_08)) { return "Washer"; }
+      if (deviceID.equals(PHOTON_15)) { return "Test Unit"; }
+      if (deviceID.equals(PHOTON2_16)){ return "none yet"; }
+      if (deviceID.equals(PHOTON2_17)){ return "none yet"; }
+      return getDeviceName();
+    }
+    static uint16_t getDeviceBaseline() {
+      String deviceID = System.deviceID();
+      if (deviceID.equals(PHOTON_01)) { return 75; }
+      if (deviceID.equals(PHOTON_07)) { return 100; }
+      if (deviceID.equals(PHOTON_08)) { return 75; }
+      if (deviceID.equals(PHOTON_15)) { return 30; }
+      return 0;
+    }
+    static void checkForRemoteReset() {
+      if ((resetFlag) && (millis() - resetSync >=  resetDelayMillis)) {
+        Utils::publish("Debug", "System.reset() Initiated");
+        System.reset();
+      }
+    }
+};
+
 // #define USE_OLED
 #ifdef USE_OLED
 #include <U8g2lib.h>
@@ -87,18 +204,17 @@ class OLEDWrapper {
     void displayValueAndTime(int i, String timeStr) {
       char c[300];
       sprintf(c, "Value: %s Time: %s", String(i).c_str(), timeStr.c_str());
-      Particle.publish("vibration", String(c));
+      Utils::publish("vibration", String(c));
+    } 
+    void publishJson() {
+      String json("{");
+      JSonizer::addFirstSetting(json, "fu", "bar");
+      json.concat("}");
+      Utils::publish("OLEDWrapper", json);
     } 
 };
 #endif
 OLEDWrapper oledWrapper;
-
-class JSonizer {
-  public:
-    static void addFirstSetting(String& json, String key, String val);
-    static void addSetting(String& json, String key, String val);
-    static String toString(bool b);
-};
 
 void JSonizer::addFirstSetting(String& json, String key, String val) {
     json.concat("\"");
@@ -215,7 +331,7 @@ void TimeSupport::handleTime() {
 }
 
 void TimeSupport::publishJson() {
-    Particle.publish("TimeSupport", getSettings());
+    Utils::publish("TimeSupport", getSettings());
 }
 
 String TimeSupport::getMinSecString(unsigned long ms) {
@@ -233,110 +349,6 @@ String TimeSupport::getUpTime() {
 
 TimeSupport    timeSupport(-8);
 
-#define DELAY_BEFORE_RESET 2000
-const unsigned int resetDelayMillis = DELAY_BEFORE_RESET;
-unsigned long resetSync = millis();
-bool resetFlag = false;
-
-const static String PHOTON_01 = "1c002c001147343438323536";
-const static String PHOTON_02 = "300040001347343438323536";
-const static String PHOTON_07 = "32002e000e47363433353735";
-const static String PHOTON_08 = "500041000b51353432383931";
-const static String PHOTON_09 = "1f0027001347363336383437";
-const static String PHOTON_15 = "270037000a47373336323230";
-const static String PHOTON2_17= "0a10aced202194944a045200";
-class Utils {
-  public:
-    static unsigned long startPublishDataMillis;
-    static bool          alwaysPublishData;
-    const static unsigned long ALWAYS_PUBLISH_DATA_MILLIS = 1000 * 60 * 60 * 2; // 2 hours
-
-    static void setAlwaysPublishData() {
-      alwaysPublishData = true;
-      startPublishDataMillis = millis();
-    }
-    static bool publishDataDone() {
-      if (millis() - startPublishDataMillis > ALWAYS_PUBLISH_DATA_MILLIS) {
-        alwaysPublishData = false;
-        startPublishDataMillis = 0;
-        return true;
-      }
-      return false;
-    }
-    static int setInt(String command, int& i, int lower, int upper) {
-      int tempMin = command.toInt();
-      if (tempMin >= lower && tempMin <= upper) {
-          i = tempMin;
-          return 1;
-      }
-      return -1;
-    }
-    static void publish(String event, String data) {
-      Particle.publish(event, data);
-      delay(1000);
-    }
-    static String elapsedTime(unsigned long ms) {
-      unsigned long seconds = (ms / 1000) % 60;
-      unsigned long minutes = (ms / 1000 / 60) % 60;
-      unsigned long hours = (ms / 1000 / 60 / 60);
-      String elapsed;
-      if (hours > 24) {
-        elapsed.concat("hours > 24");
-      } else {
-        char s[32];
-        sprintf(s, "%02u:%02u:%02u", hours, minutes, seconds);
-        elapsed.concat(s);
-      }
-      return elapsed;
-    }
-    static String elapsedUpTime() {
-      return elapsedTime(millis());
-    }
-    static void publishJson() {
-      String json("{");
-      JSonizer::addFirstSetting(json, "githubRepo", "https://github.com/chrisxkeith/vibration-sensor");
-      JSonizer::addSetting(json, "build", "~ Tue, Aug 26, 2025 10:43:17 AM");
-      JSonizer::addSetting(json, "timeSinceRestart", elapsedUpTime());
-      JSonizer::addSetting(json, "getDeviceName", getDeviceName());
-      JSonizer::addSetting(json, "getDeviceLocation", getDeviceLocation());
-      JSonizer::addSetting(json, "getDeviceBaseline", String(getDeviceBaseline()));
-      JSonizer::addSetting(json, "startPublishDataMillis", String(startPublishDataMillis));
-      JSonizer::addSetting(json, "alwaysPublishData", JSonizer::toString(alwaysPublishData));
-      JSonizer::addSetting(json, "ALWAYS_PUBLISH_DATA_MILLIS", String(ALWAYS_PUBLISH_DATA_MILLIS));
-      json.concat("}");
-      Particle.publish("Utils json", json);
-    }
-    static String getDeviceName() {
-      String deviceID = System.deviceID();
-      if (deviceID.equals(PHOTON_01)) { return "PHOTON_01"; }
-      if (deviceID.equals(PHOTON_07)) { return "PHOTON_07"; }
-      if (deviceID.equals(PHOTON_08)) { return "PHOTON_08"; }
-      if (deviceID.equals(PHOTON_15)) { return "PHOTON_15"; }
-      return "Unknown deviceID: " + deviceID;
-    }
-    static String getDeviceLocation() {
-      String deviceID = System.deviceID();
-      if (deviceID.equals(PHOTON_01)) { return "Dryer";  }
-      if (deviceID.equals(PHOTON_07)) { return "Dryer 2"; }
-      if (deviceID.equals(PHOTON_08)) { return "Washer"; }
-      if (deviceID.equals(PHOTON_15)) { return "Test Unit"; }
-      return getDeviceName();
-    }
-    static uint16_t getDeviceBaseline() {
-      String deviceID = System.deviceID();
-      if (deviceID.equals(PHOTON_01)) { return 75; }
-      if (deviceID.equals(PHOTON_07)) { return 100; }
-      if (deviceID.equals(PHOTON_08)) { return 75; }
-      if (deviceID.equals(PHOTON_15)) { return 30; }
-      return 0;
-    }
-    static void checkForRemoteReset() {
-      if ((resetFlag) && (millis() - resetSync >=  resetDelayMillis)) {
-        Particle.publish("Debug", "System.reset() Initiated", 300, PRIVATE);
-        System.reset();
-      }
-    }
-};
 
 unsigned long Utils::startPublishDataMillis = 0;
 bool          Utils::alwaysPublishData = false;
@@ -369,7 +381,7 @@ class SensorHandler {
         JSonizer::addFirstSetting(json, "max_in_publish_interval", String(max_in_publish_interval));
         JSonizer::addSetting(json, "elapsedSeconds", String(elapsedMillis / 1000));
         json.concat("}");
-        Particle.publish("vibration", json);
+        Utils::publish("vibration", json);
     }
 
     uint16_t      max_A0 = 0;
@@ -463,15 +475,42 @@ class SensorHandler {
       do_publish(millis() - last_millis_of_max);
     }
     void publishJson() {
-      Particle.publish("SensorHandler json", getJson());
+      Utils::publish("SensorHandler json", getJson());
     }
 };
 SensorHandler sensorhandler;
 
+int sample_and_publish(String cmd) {
+  sensorhandler.sample_and_publish_();
+  return 1;
+}
+
+// getSettings() is already defined somewhere.
+int publish_settings(String command) {
+    if (command.compareTo("") == 0) {
+        Utils::publishJson();
+    } else if (command.compareTo("time") == 0) {
+        timeSupport.publishJson();
+    } else if (command.compareTo("sensor") == 0) {
+        sensorhandler.publishJson();
+    } else if (command.compareTo("oled") == 0) {
+        oledWrapper.publishJson();
+    } else {
+        String msg(command);
+        msg.concat(" : expected one of [empty], \"time\", \"sensor\", \"oled\"");
+        Utils::publish("publish_settings bad input", msg);
+        return -1;
+    }
+    return 1;
+}
+
 void setup() {
   oledWrapper.startup();
   oledWrapper.clear();
-  Particle.publish("Startup status", "finished");
+  Particle.function("GetData", sample_and_publish);
+  Particle.function("GetSetting", publish_settings);
+  Particle.function("reset", remoteResetFunction);
+  Utils::publish("Startup status", "finished");
   delay(1000);
 }
 
@@ -479,4 +518,5 @@ void loop() {
   timeSupport.handleTime();
   sensorhandler.monitor_sensor();
   delay( 2 * 1000 );
+  Utils::checkForRemoteReset();
 }
