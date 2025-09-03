@@ -364,6 +364,52 @@ int remoteResetFunction(String command) {
   return 0;
 }
 
+// #define USE_TWIST
+#ifdef USE_TWIST
+#include "SparkFun_Qwiic_Twist_Arduino_Library.h"
+TWIST twist;
+
+class Twist {
+  private:
+    TWIST twist;
+    bool  ok = true;
+  public:
+    void setup() {
+      if (twist.begin() == false) {
+        Utils::publish("Error!", "Twist not detected.");
+        ok = false;
+      }
+    }
+    int getCount() {
+      if (ok) {
+        return twist.getCount();
+      }
+      return 0;
+    }
+    bool isPressed() {
+      if (ok) {
+        return twist.isPressed();
+      }
+      return false;
+    }
+    void test() {
+      if (ok) {
+        Utils::publish("Twist count", String(getCount()));
+        Utils::publish("Twist pressed", JSonizer::toString(isPressed()));
+      }
+    }
+};
+#else
+class Twist {
+  public:
+    void setup() {}
+    int getCount() { return 0; }
+    bool isPressed() { return false; }
+    void test() {}
+};
+#endif
+Twist twistWrapper;
+
 class SensorHandler {
   private:
     uint16_t applyBaseline(uint16_t v) {
@@ -523,10 +569,11 @@ class App {
         firstTime = false;
         Utils::publish("loop", "firstTime");
         delay(2000);
+        twistWrapper.setup();
+        twistWrapper.test();
       }
       timeSupport.handleTime();
       sensorhandler.monitor_sensor();
-      delay( 2 * 1000 );
       Utils::checkForRemoteReset();
     }  
 };
