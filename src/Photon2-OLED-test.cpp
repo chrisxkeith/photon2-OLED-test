@@ -351,7 +351,7 @@ TimeSupport    timeSupport(-8);
 
 
 unsigned long Utils::startPublishDataMillis = 0;
-bool          Utils::alwaysPublishData = false;
+bool          Utils::alwaysPublishData = true;
 
 int setAlwaysPublishData(String command) {
   Utils::setAlwaysPublishData();
@@ -386,7 +386,7 @@ class SensorHandler {
 
     uint16_t      max_A0 = 0;
     const int     NUM_SAMPLES = 1000;
-    const int     PIEZO_PIN_0 = A0;
+    const int     PIEZO_PIN_0 = A5;
     String        last_time_of_max;
 
     void getVoltages() {
@@ -451,8 +451,8 @@ class SensorHandler {
       getVoltages();
       if (Utils::alwaysPublishData) {
         publish_max(millis() - Utils::startPublishDataMillis);
-        oledWrapper.displayValueAndTime(max_A0,
-                              Utils::elapsedTime(millis() - Utils::startPublishDataMillis));
+        // oledWrapper.displayValueAndTime(max_A0,
+        //                      Utils::elapsedTime(millis() - Utils::startPublishDataMillis));
         if (Utils::publishDataDone()) {
           oledWrapper.clear();
         }
