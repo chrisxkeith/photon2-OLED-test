@@ -189,6 +189,24 @@ class OLEDWrapper {
         }
         display(s, 3, x, 0);
     }
+    void displayValueAndTime(int i, String timeStr) {
+      char c[300];
+      sprintf(c, "Value: %d Time: %s", i, timeStr.c_str());
+      display(String(c), 1, 0, 64);
+    }
+    void publishJson() {
+      String json("{");
+      JSonizer::addFirstSetting(json, "fu", "bar");
+      json.concat("}");
+      Utils::publish("OLEDWrapper", json);
+    }
+    void test() {
+      u8g2.clearBuffer();					// clear the internal memory
+      u8g2.setFont(u8g2_font_ncenB08_tr);	// choose a suitable font
+      u8g2.drawStr(0,10,"Hello World!");	// write something to the internal memory
+      u8g2.sendBuffer();					// transfer internal memory to the display
+      delay(1000);  
+    }
   };
 
 #else
@@ -206,6 +224,7 @@ class OLEDWrapper {
       sprintf(c, "Value: %s Time: %s", String(i).c_str(), timeStr.c_str());
       Utils::publish("vibration", String(c));
     } 
+    void test() {}
     void publishJson() {
       String json("{");
       JSonizer::addFirstSetting(json, "fu", "bar");
@@ -215,6 +234,10 @@ class OLEDWrapper {
 };
 #endif
 OLEDWrapper oledWrapper;
+int testOLED(String command) {
+  oledWrapper.test();
+  return 0;
+}
 
 void JSonizer::addFirstSetting(String& json, String key, String val) {
     json.concat("\"");
@@ -363,52 +386,6 @@ int remoteResetFunction(String command) {
   resetSync = millis();
   return 0;
 }
-
-// #define USE_TWIST
-#ifdef USE_TWIST
-#include "SparkFun_Qwiic_Twist_Arduino_Library.h"
-TWIST twist;
-
-class Twist {
-  private:
-    TWIST twist;
-    bool  ok = true;
-  public:
-    void setup() {
-      if (twist.begin() == false) {
-        Utils::publish("Error!", "Twist not detected.");
-        ok = false;
-      }
-    }
-    int getCount() {
-      if (ok) {
-        return twist.getCount();
-      }
-      return 0;
-    }
-    bool isPressed() {
-      if (ok) {
-        return twist.isPressed();
-      }
-      return false;
-    }
-    void test() {
-      if (ok) {
-        Utils::publish("Twist count", String(getCount()));
-        Utils::publish("Twist pressed", JSonizer::toString(isPressed()));
-      }
-    }
-};
-#else
-class Twist {
-  public:
-    void setup() {}
-    int getCount() { return 0; }
-    bool isPressed() { return false; }
-    void test() {}
-};
-#endif
-Twist twistWrapper;
 
 class SensorHandler {
   private:
@@ -561,6 +538,7 @@ class App {
       Particle.function("GetData", sample_and_publish);
       Particle.function("GetSetting", publish_settings);
       Particle.function("reset", remoteResetFunction);
+      Particle.function("testOLED", testOLED);
       delay(1000);
       Utils::publish("Startup status", "finished");
     }
@@ -569,11 +547,9 @@ class App {
         firstTime = false;
         Utils::publish("loop", "firstTime");
         delay(2000);
-        twistWrapper.setup();
-        twistWrapper.test();
       }
       timeSupport.handleTime();
-      sensorhandler.monitor_sensor();
+      // sensorhandler.monitor_sensor();
       Utils::checkForRemoteReset();
     }  
 };
